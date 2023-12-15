@@ -2,9 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pickle
 import streamlit as st
-import pickle
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -16,17 +14,73 @@ from sklearn.model_selection import cross_val_score
 
 
 
-def load_model():
-    with open('saved_steps3.pkl', 'rb') as file:
-        data = pickle.load(file)
-    return data
+df = pd.read_csv('data-full.csv')
+df = df[df['campaign'] < 33]
+df = df[df['previous'] < 31]
+bool_columns = ['housing', 'loan', 'y']
+for col in  bool_columns:
+    df[col+'_new']=df[col].apply(lambda x : 1 if x == 'yes' else 0)
+    df.drop(col, axis=1, inplace=True)
 
-data = load_model()
+df = df.drop(columns=['default'])
+month_mapping = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                 'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12}
 
-regressor = data["model"]
+# ใช้ method map เพื่อแทนค่าในคอลัมน์ month ด้วยตัวเลขจากพจนานุกรม
+df['month'] = df['month'].map(month_mapping)
 
-# le_en
-le_en = data["le_en"]
+le_en = LabelEncoder()
+
+le_education = LabelEncoder()
+df['job'] = le_education.fit_transform(df['job'])
+df["job"].unique()
+#le.classes_
+
+le_education = LabelEncoder()
+df['marital'] = le_education.fit_transform(df['marital'])
+df["marital"].unique()
+#le.classes_
+
+le_education = LabelEncoder()
+df['education'] = le_education.fit_transform(df['education'])
+df["education"].unique()
+#le.classes_
+
+le_education = LabelEncoder()
+df['contact'] = le_education.fit_transform(df['contact'])
+df["contact"].unique()
+#le.classes_
+
+le_education = LabelEncoder()
+df['poutcome'] = le_education.fit_transform(df['poutcome'])
+df["poutcome"].unique()
+#le.classes_
+
+X = df.drop("y_new", axis=1)
+y = df["y_new"]
+
+X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.2, random_state=0)
+
+model_rf = RandomForestClassifier(n_estimators=50, criterion='entropy', max_depth=2)
+model_rf.fit(X_train,y_train)
+
+# ทดสอบโมเดลบนชุดทดสอบ
+y_pred = model_rf.predict(X_test)
+
+# ทดสอบความสำคัญของ feature ด้วยสถิติ
+X_with_const = sm.add_constant(X_train)
+model_sm = sm.OLS(y_train, X_with_const).fit()
+
+selected_features = X.columns[model_sm.pvalues[1:] < 0.05]
+
+X_train_selected = X_train[selected_features]
+X_test_selected = X_test[selected_features]
+
+model_selected = RandomForestClassifier()
+model_selected.fit(X_train_selected, y_train)
+
+# ทดสอบโมเดลบนชุดทดสอบ
+y_pred_selected = model_selected.predict(X_test_selected)
 
 
 st.title("Model time Deposit by Natthaphat Toichatturat")
@@ -86,7 +140,7 @@ housing_new = st.slider("Housing", 0, 1, 0)
 loan_new = st.slider("Loan", 0, 1, 0)
 
 
-ok = st.button("Calculate Salary")
+ok = st.button("Predict")
 if ok:
     X_input = np.array([[age, marital, education,balance,contact, duration,campaign,pdays,previous,poutcome,housing_new,loan_new]])
     X_input[:, 1] = le_en.fit_transform(X_input[:,1])
@@ -95,57 +149,15 @@ if ok:
     X_input[:, 9] = le_en.fit_transform(X_input[:,9])
     X_input = X_input.astype(float)
 
-    y_pred_input = regressor.predict(X_input)
-    deposit = np.where(y_pred_input > 0.5, 1, 0)
-    st.subheader(f"This customer trend to have time deposit is ${deposit[0]:.2f}")
+    y_pred_input = model_selected.predict(X_input)
+    # deposit = np.where(y_pred_input > 0.5, 1, 0)
+    
+    st.subheader(f"This customer trend to have time deposit is {y_pred_input[0]} ")
+    st.subheader("0 = No, 1 = Yes")
     
 st.title("Analytics this Model")
 
-df = pd.read_csv('data-full.csv')
-df = df[df['campaign'] < 33]
-df = df[df['previous'] < 31]
-bool_columns = ['housing', 'loan', 'y']
-for col in  bool_columns:
-    df[col+'_new']=df[col].apply(lambda x : 1 if x == 'yes' else 0)
-    df.drop(col, axis=1, inplace=True)
 
-df = df.drop(columns=['default'])
-month_mapping = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-                 'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12}
-
-# ใช้ method map เพื่อแทนค่าในคอลัมน์ month ด้วยตัวเลขจากพจนานุกรม
-df['month'] = df['month'].map(month_mapping)
-
-
-le_education = LabelEncoder()
-df['job'] = le_education.fit_transform(df['job'])
-df["job"].unique()
-#le.classes_
-
-le_education = LabelEncoder()
-df['marital'] = le_education.fit_transform(df['marital'])
-df["marital"].unique()
-#le.classes_
-
-le_education = LabelEncoder()
-df['education'] = le_education.fit_transform(df['education'])
-df["education"].unique()
-#le.classes_
-
-le_education = LabelEncoder()
-df['contact'] = le_education.fit_transform(df['contact'])
-df["contact"].unique()
-#le.classes_
-
-le_education = LabelEncoder()
-df['poutcome'] = le_education.fit_transform(df['poutcome'])
-df["poutcome"].unique()
-#le.classes_
-
-X = df.drop("y_new", axis=1)
-y = df["y_new"]
-
-X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.2, random_state=0)
 
 
 model_score =cross_val_score(estimator=RandomForestClassifier(),X=X_train, y=y_train, cv=5)
@@ -210,25 +222,14 @@ r2 = r2_score(y_test, y_pred)
 st.write("### R-squared")
 st.write(r2)
 
-# ทดสอบความสำคัญของ feature ด้วยสถิติ
-X_with_const = sm.add_constant(X_train)
-model_sm = sm.OLS(y_train, X_with_const).fit()
+
 
 st.write("### Summary Model")
 st.write(model_sm.summary())
 
 st.write("## Select some feature for this model")
 st.write("#### for best R-squared values")
-selected_features = X.columns[model_sm.pvalues[1:] < 0.05]
 
-X_train_selected = X_train[selected_features]
-X_test_selected = X_test[selected_features]
-
-model_selected = RandomForestClassifier()
-model_selected.fit(X_train_selected, y_train)
-
-# ทดสอบโมเดลบนชุดทดสอบ
-y_pred_selected = model_selected.predict(X_test_selected)
 
 # คำนวณ R-squared สำหรับโมเดลที่ถูกเลือก
 r2_selected = r2_score(y_test, y_pred_selected)
